@@ -30,6 +30,7 @@ public class CountryService {
         log.info("Starting synchronization of countries from external API");
         // Convert reactive stream to blocking list at service boundary
         List<Country> countries = restCountriesApiClient.fetchAllCountries()
+                //.subscribeOn(Schedulers.boundedElastic())
                 .collectList()
                 .block();
 
