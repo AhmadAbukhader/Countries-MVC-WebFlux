@@ -34,6 +34,12 @@ public class CountryRepository {
 
     private static final String DELETE = "DELETE FROM countries WHERE id = ?";
 
+    private static final String DELETE_ALL = "DELETE FROM countries";
+
+    private static final String BATCH_INSERT = "INSERT INTO countries (country_name, official_name, capital_city, region, subregion, "
+            + "population, area, currency_code, currency_name, created_at, updated_at) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
     private static final String FIND_BY_ID = SELECT_ALL + " WHERE id = ?";
 
     private static final String FIND_BY_REGION = SELECT_ALL + " WHERE region = ?";
@@ -135,6 +141,43 @@ public class CountryRepository {
     public void deleteById(UUID id) {
         log.debug("Deleting country with id: {}", id);
         jdbcTemplate.update(DELETE, id);
+    }
+
+    public void deleteAll() {
+        log.info("Deleting all countries");
+        int deleted = jdbcTemplate.update(DELETE_ALL);
+        log.info("Deleted {} countries", deleted);
+    }
+
+    public int saveBatch(List<Country> countries) {
+        if (countries == null || countries.isEmpty()) {
+            log.warn("No countries to save in batch");
+            return 0;
+        }
+
+        log.info("Batch inserting {} countries", countries.size());
+
+        jdbcTemplate.batchUpdate(BATCH_INSERT, countries, countries.size(),
+                (ps, country) -> {
+                    ps.setString(1, country.getName());
+                    ps.setString(2, country.getOfficialName());
+                    ps.setString(3, country.getCapital());
+                    ps.setString(4, country.getRegion());
+                    ps.setString(5, country.getSubregion());
+                    if (country.getPopulation() != null) {
+                        ps.setLong(6, country.getPopulation());
+                    } else {
+                        ps.setNull(6, java.sql.Types.BIGINT);
+                    }
+                    ps.setBigDecimal(7, country.getArea());
+                    ps.setString(8, country.getCurrencyCode());
+                    ps.setString(9, country.getCurrencyName());
+                    ps.setTimestamp(10, Timestamp.from(country.getCreatedAt()));
+                    ps.setTimestamp(11, Timestamp.from(country.getUpdatedAt()));
+                });
+
+        log.info("Successfully batch inserted {} countries", countries.size());
+        return countries.size();
     }
 
     public boolean existsByIdGreaterThan(UUID cursor) {

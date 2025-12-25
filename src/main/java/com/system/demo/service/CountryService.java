@@ -10,6 +10,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -24,35 +27,57 @@ public class CountryService {
     private final RestCountriesApiClient restCountriesApiClient;
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final long MIN_POPULATION = 1_000_000L;
 
     @Transactional
     public int syncCountriesFromExternalApi() {
         log.info("Starting synchronization of countries from external API");
-        // Convert reactive stream to blocking list at service boundary
-        List<Country> countries = restCountriesApiClient.fetchAllCountries()
-                //.subscribeOn(Schedulers.boundedElastic())
+
+        Instant now = Instant.now();
+        Scheduler fetchScheduler = Schedulers.newSingle("fetching-countries");
+        Scheduler saveScheduler = Schedulers.newBoundedElastic(150, 10, "saveCountries");
+
+        Integer savedCount = restCountriesApiClient.fetchAllCountries()
+                .publishOn(fetchScheduler)
+                .filter(country -> {
+                    boolean passes = country.getPopulation() != null && country.getPopulation() > MIN_POPULATION;
+                    if (!passes) {
+                        log.debug("Filtered out country with population: {}", country.getPopulation());
+                    }
+                    return passes;
+                })
+                .map(country -> {
+                    country.setId(null);
+                    country.setCreatedAt(now);
+                    country.setUpdatedAt(now);
+                    return country;
+                })
                 .collectList()
+                .doOnSuccess(list -> log.info("Fetched {} countries from external API", list.size()))
+                .publishOn(saveScheduler)
+                .flatMap(countries -> {
+                    if (countries == null || countries.isEmpty()) {
+                        log.warn("No countries retrieved from external API");
+                        return reactor.core.publisher.Mono.just(0);
+                    }
+
+                    // Delete all existing countries and batch insert new ones
+                    log.info("Deleting all existing countries before batch insert");
+                    countryRepository.deleteAll();
+
+                    int count = countryRepository.saveBatch(countries);
+                    log.info("Successfully synchronized {} countries", count);
+
+                    return reactor.core.publisher.Mono.just(count);
+                })
+                .doOnError(error -> log.error("Error during synchronization", error))
+                .doFinally(signalType -> {
+                    fetchScheduler.dispose();
+                    saveScheduler.dispose();
+                })
                 .block();
 
-        if (countries == null || countries.isEmpty()) {
-            log.warn("No countries retrieved from external API");
-            return 0;
-        }
-
-        log.info("Retrieved {} countries from external API, filtering and saving...", countries.size());
-        int savedCount = 0;
-        Instant now = Instant.now();
-
-        for (Country country : countries) {
-            country.setId(null); // Let database generate the UUID
-            country.setCreatedAt(now);
-            country.setUpdatedAt(now);
-            countryRepository.save(country);
-            savedCount++;
-        }
-
-        log.info("Successfully synchronized {} countries", savedCount);
-        return savedCount;
+        return savedCount != null ? savedCount : 0;
     }
 
     public PaginatedResponse<CountryDto> getAllCountries(String cursor, Integer limit) {
