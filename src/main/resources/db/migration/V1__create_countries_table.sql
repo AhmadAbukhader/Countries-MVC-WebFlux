@@ -1,8 +1,5 @@
--- Create schema if it doesn't exist
-CREATE SCHEMA IF NOT EXISTS mvc_schema;
-
 -- Set search path to the schema for this session
-SET search_path TO mvc_schema;
+SET search_path TO countries_mvc_schema;
 
 CREATE TABLE countries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),   -- Replace with uuid_generate_v7() if supported

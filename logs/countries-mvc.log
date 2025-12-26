@@ -10552,3 +10552,7 @@ Caused by: java.lang.IllegalArgumentException: Invalid UUID string: sync
 2025-12-25 22:39:40.508 [saveCountries-1] INFO  com.system.demo.repository.CountryRepository - Successfully batch inserted 161 countries
 2025-12-25 22:39:40.508 [saveCountries-1] INFO  com.system.demo.service.CountryService - Successfully synchronized 161 countries
 2025-12-25 22:39:40.511 [http-nio-8089-exec-1] INFO  com.system.demo.controller.CountryController - Sync completed, 161 countries synchronized
+2025-12-26 00:25:22.688 [SpringApplicationShutdownHook] INFO  org.springframework.boot.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2025-12-26 00:25:22.759 [tomcat-shutdown] INFO  org.springframework.boot.tomcat.GracefulShutdown - Graceful shutdown complete
+2025-12-26 00:25:24.935 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2025-12-26 00:25:24.946 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.
